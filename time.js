@@ -14,6 +14,8 @@ const fs = require('fs')
 const moment = require('moment')
 
 const patternCounter = {}
+const invalidDatetime = []
+const validDatetime = []
 
 let timeRules = {
     'before': {
@@ -117,6 +119,12 @@ let quants = {
     }
 }
 
+function Counter(array) {
+  var count = {};
+  array.forEach(val => count[val] = (count[val] || 0) + 1);
+  return count;
+}
+
 function getTimePatterns(rules) {
   let timePatterns = {}
   for (let k in rules) {
@@ -142,7 +150,12 @@ function increaseTime(times, tokens) {
     }
   }
   if (timeString.length > 0) {
-    console.log(timeString, moment(timeString).toDate())
+    if (!moment(timeString).isValid()) {
+      // console.log(timeString, moment(timeString).toDate())
+      invalidDatetime.push(timeString)
+    } else {
+      validDatetime.push(timeString)
+    }
   }
   if (moment.isDate(timeString)) {
     return tokens.join(' ').replace(timeString, moment(timeString).add(1, 'days').toDate())
@@ -168,7 +181,12 @@ function decreaseTime(times, tokens) {
     }
   }
   if (timeString.length > 0) {
-    console.log(timeString, moment(timeString).toDate())
+    if (!moment(timeString).isValid()) {
+      // console.log(timeString, moment(timeString).toDate())
+      invalidDatetime.push(timeString)
+    } else {
+      validDatetime.push(timeString)
+    }
   }
   if (moment.isDate(timeString)) {
     return tokens.join(' ').replace(timeString, moment(timeString).subtract(1, 'days').toDate())
@@ -195,18 +213,23 @@ function parseSentence(sent, patterns) {
     let keytimes = patterns[key].split('_')[1].split('/') // [DATE, DURATION, TIME] 
     let windowsize = parseInt(patterns[key].split('_')[2])
     let wordIndex = words.indexOf(keyword)
+    let direction = windowsize > 0 ? 1 : -1
+
     if (wordIndex > -1) {
       // console.log(`keyword found: ${words.join(' ')}`)
       let times = []
       keytimes.map((kt) => {
-        for (let i in ners) {
+        let lasti = wordIndex - direction
+        for (let i = wordIndex; Math.abs(i - wordIndex) <= Math.abs(windowsize) && i < ners.length && i >= 0;) {
           let diff = i - wordIndex;
-          if (ners[i] == kt && (windowsize < 0 ? diff >= windowsize && diff < 0 : diff <= windowsize && diff > 0 )) {
+          if (ners[i] == kt && i == (lasti + direction) && (windowsize < 0 ? diff >= windowsize && diff < 0 : diff <= windowsize && diff > 0 )) {
             times.push([kt, i].join(' '))
           }
+          lasti = i
+          windowsize > 0 ? i++ : i--
         }
       })
-    
+
       if (times.length > 0) {
         if (patternCounter[key]) {
           patternCounter[key] += 1
@@ -285,8 +308,17 @@ async function transformLineByLine(filename) {
       output.concat(res)
     }
   }
-  const dataBuffer = Buffer.from(output.join('\n'), 'utf-8')
-  fs.writeFileSync(`nli-train.txt`, dataBuffer)
+  const invalid = Counter(invalidDatetime)
+  const valid = Counter(validDatetime)
+
+  const db1 = Buffer.from(JSON.stringify(invalid), 'utf-8')
+  fs.writeFileSync(`nli-date-invalid.json`, db1)
+
+  const db2 = Buffer.from(JSON.stringify(valid), 'utf-8')
+  fs.writeFileSync(`nli-date-valid.json`, db2)
+
+  const db3 = Buffer.from(output.join('\n'), 'utf-8')
+  fs.writeFileSync(`nli-train.txt`, db3)
 }
 
 async function processLineByLine(filename) {
