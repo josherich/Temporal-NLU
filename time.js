@@ -12,6 +12,7 @@
 const readline = require('readline')
 const fs = require('fs')
 const moment = require('moment')
+const utils = require('./utils')
 
 const patternCounter = {}
 const invalidDatetime = []
@@ -38,7 +39,7 @@ let timeRules = {
     },
     'in': {
         'pattern': 'in_DATE_5',
-        'entailment': ['increase_time', 'chg_before'],
+        'entailment': ['chg_before','increase_time'],
         'neutral': null,
         'contradiction': ['chg_before', 'chg_after']
     },
@@ -133,6 +134,60 @@ function getTimePatterns(rules) {
   return timePatterns
 }
 
+function change_time(times, tokens, direction) {
+  for (let i in times) {
+    let tType = times[i].split(' ')[0]
+    let tIndex = parseInt(times[i].split(' ')[1])
+    let val = tokens[tIndex]
+    if (!val) {
+      console.log("null value: ", tType, tIndex, tokens, direction)
+    }
+
+    if (utils.could_be_day(val)) {
+      console.log("change day: ", val, direction)
+      tokens[tIndex] = utils.next_day(val, direction)
+      console.log("to day: ", tokens[tIndex], direction)
+      return tokens
+    }
+
+    if (utils.could_be_date(val)) {
+      console.log("change date: ", val, direction)
+      tokens[tIndex] = utils.next_date(val, direction)
+      console.log("to date: ", tokens[tIndex], direction)
+      return tokens
+    }
+
+    if (utils.could_be_month(val)) {
+      console.log("change month: ", val, direction)
+      tokens[tIndex] = utils.next_month(val, direction)
+      console.log("to month: ", tokens[tIndex], direction)
+      return tokens
+    }
+
+    if (utils.could_be_season(val)) {
+      console.log("change season: ", val, direction)
+      tokens[tIndex] = utils.next_season(val, direction)
+      console.log("to season: ", tokens[tIndex], direction)
+      return tokens
+    }
+
+    if (utils.could_be_year(val)) {
+      console.log("change year: ", val, direction)
+      tokens[tIndex] = utils.next_year(val, direction)
+      console.log("to year: ", tokens[tIndex], direction)
+      return tokens
+    }
+  }
+  return false // nothing changed
+}
+
+// if has_day? increase day
+// if has_month? increase month
+// if has_season? increase season
+// if has_year? increase year
+//    if has_start? to middle, to end
+//    if has_early? to late
+//    if this? to next
 function increaseTime(times, tokens) {
   let timeString = ""
   for (let i in times) {
@@ -164,7 +219,7 @@ function increaseTime(times, tokens) {
   }
 }
 
-function decreaseTime(times, tokens) {
+function getAllTimeExpressions(times, tokens) {
   let timeString = ""
   for (let i in times) {
     let type = times[i].split(' ')[0]
@@ -218,8 +273,10 @@ function parseSentence(sent, patterns) {
     if (wordIndex > -1) {
       // console.log(`keyword found: ${words.join(' ')}`)
       let times = []
-      keytimes.map((kt) => {
+      for (let k in keytimes) {
+        let kt = keytimes[k]
         let lasti = wordIndex - direction
+        if (ners[wordIndex + direction] !== kt) continue // Temporal NER should start from neighbors
         for (let i = wordIndex; Math.abs(i - wordIndex) <= Math.abs(windowsize) && i < ners.length && i >= 0;) {
           let diff = i - wordIndex;
           if (ners[i] == kt && i == (lasti + direction) && (windowsize < 0 ? diff >= windowsize && diff < 0 : diff <= windowsize && diff > 0 )) {
@@ -228,7 +285,11 @@ function parseSentence(sent, patterns) {
           lasti = i
           windowsize > 0 ? i++ : i--
         }
-      })
+      }
+
+      if (direction == -1) {
+        times.reverse()
+      }
 
       if (times.length > 0) {
         if (patternCounter[key]) {
@@ -258,31 +319,61 @@ function transformNLISentence(key, tokens, keyword, times) {
     console.log('assert unknown keyword')
     return false
   }
+  
+  getAllTimeExpressions(times, tokens)
+
   let rule = timeRules[key]
+  // console.log(_tokens)
   for (let index in ops) {
     // increase time; change keyword
     let opcodes = rule[ops[index]]
+    if (!opcodes) continue
+
+    // cover all operations
+    let scorefull = opcodes.length
+    let score = 0
+    
+    let _tokens = tokens.slice()
     for (let j in opcodes) {
       let opcode = opcodes[j].split('_')
       if (opcode[0] == 'chg') {
         let tokenIndex = keyword[1]
-        tokens[tokenIndex] = opcode[1]
-        res.push([tokens.join(' '), ops[index]].join('\t'))
+        // console.log("chg op: ",_tokens[tokenIndex], opcode[1], ' : ', _tokens.join(' '))
+        _tokens[tokenIndex] = opcode[1]
+        score++
+        continue
+        // res.push([_tokens.join(' '), ops[index]].join('\t'))
       }
       if (opcode[0] == 'increase') {
-        let chg = increaseTime(times, tokens)
-        if (chg) {
-          console.log('transform increase')
-          res.push([tokens.join(' '), chg, ops[index]].join('\t'))
+        let _res = change_time(times, _tokens, 1)
+        if (_res) {
+          _tokens = _res
+          score++
         }
+        continue
+        // if (chg) {
+        //   // console.log('transform increase', _tokens.join(' '), chg.join(' '))
+        //   res.push([_tokens.join(' '), chg.join(' '), ops[index]].join('\t'))
+        // }
       }
       if (opcode[0] == 'decrease') {
-        let chg = decreaseTime(times, tokens)
-        if (chg) {
-          console.log('transform decrease')
-          res.push([tokens.join(' '), chg, ops[index]].join('\t'))
+        let _res = change_time(times, _tokens, -1)
+        if (_res) {
+          _tokens = _res
+          score++
         }
+        continue
+        // if (chg) {
+        //   // console.log('transform decrease', _tokens.join(' '), chg.join(' '))
+        //   res.push([_tokens.join(' '), chg.join(' '), ops[index]].join('\t'))
+        // }
       }
+    }
+    if (scorefull != score) continue
+    let origin = tokens.join(' ')
+    let chg = _tokens.join(' ')
+    if (origin != chg) {
+      res.push([origin, chg, ops[index]].join('\t'))
     }
   }
   return res
@@ -303,9 +394,9 @@ async function transformLineByLine(filename) {
       continue
     }
     let ops = line.split('\t')
-    let res = transformNLISentence(ops[0], ops[1].split(' '), ops[2], ops.slice(3))
+    let res = transformNLISentence(ops[0], ops[1].split(' '), ops[2].split(' '), ops.slice(3))
     if (res.length > 0) {
-      output.concat(res)
+      output = output.concat(res)
     }
   }
   const invalid = Counter(invalidDatetime)
