@@ -191,37 +191,37 @@ function change_time(times, tokens, direction) {
     }
 
     if (utils.could_be_day(val)) {
-      console.log("change day: ", val, direction)
+      // console.log("change day: ", val, direction)
       tokens[tIndex] = utils.next_day(val, direction)
-      console.log("to day: ", tokens[tIndex], direction)
+      // console.log("to day: ", tokens[tIndex], direction)
       return tokens
     }
 
     if (utils.could_be_date(val)) {
-      console.log("change date: ", val, direction)
+      // console.log("change date: ", val, direction)
       tokens[tIndex] = utils.next_date(val, direction)
-      console.log("to date: ", tokens[tIndex], direction)
+      // console.log("to date: ", tokens[tIndex], direction)
       return tokens
     }
 
     if (utils.could_be_month(val)) {
-      console.log("change month: ", val, direction)
+      // console.log("change month: ", val, direction)
       tokens[tIndex] = utils.next_month(val, direction)
-      console.log("to month: ", tokens[tIndex], direction)
+      // console.log("to month: ", tokens[tIndex], direction)
       return tokens
     }
 
     if (utils.could_be_season(val)) {
-      console.log("change season: ", val, direction)
+      // console.log("change season: ", val, direction)
       tokens[tIndex] = utils.next_season(val, direction)
-      console.log("to season: ", tokens[tIndex], direction)
+      // console.log("to season: ", tokens[tIndex], direction)
       return tokens
     }
 
     if (utils.could_be_year(val)) {
-      console.log("change year: ", val, direction)
+      // console.log("change year: ", val, direction)
       tokens[tIndex] = utils.next_year(val, direction)
-      console.log("to year: ", tokens[tIndex], direction)
+      // console.log("to year: ", tokens[tIndex], direction)
       return tokens
     }
   }
@@ -270,45 +270,45 @@ function parseLine(line) {
 function pickTrainSet(sentences) {
   let counter = {
     'before': {
-        'entailment': 100,
-        'neutral': 100,
-        'contradiction': 100
+        'entailment': 600,
+        'neutral': 600,
+        'contradiction': 600
     },
     'after': {
-        'entailment': 100,
-        'neutral': 100,
-        'contradiction': 100
+        'entailment': 600,
+        'neutral': 600,
+        'contradiction': 600
     },
     'at': {
-        'entailment': 100,
-        'neutral': 100,
-        'contradiction': 100
+        'entailment': 600,
+        'neutral': 600,
+        'contradiction': 600
     },
     'in': {
-        'entailment': 100,
-        'neutral': 100,
-        'contradiction': 100
+        'entailment': 600,
+        'neutral': 600,
+        'contradiction': 600
     },
     'since_date': { // is since an event?
-        'entailment': 100,
-        'neutral': 100,
-        'contradiction': 100
+        'entailment': 600,
+        'neutral': 600,
+        'contradiction': 600
     },
     'between': {
-        'entailment': 100,
-        'neutral': 100,
-        'contradiction': 100
+        'entailment': 600,
+        'neutral': 600,
+        'contradiction': 600
         // 'contradiction': ['chg_after_time2', 'chg_at_time1', 'chg_before_time1']
     },
     'later': {
-        'entailment': 100,
-        'neutral': 100,
-        'contradiction': 100
+        'entailment': 600,
+        'neutral': 600,
+        'contradiction': 600
     },
     'earlier': {
-        'entailment': 100,
-        'neutral': 100,
-        'contradiction': 100
+        'entailment': 600,
+        'neutral': 600,
+        'contradiction': 600
     }
   }
   let res = []
@@ -573,6 +573,39 @@ async function processLineByLine(filename) {
   fs.writeFileSync(`./data/${filename}_annotated.txt`, dataBuffer)
 }
 
+async function mixDatasetWithSnli(tnliPath, snliPath, type='train') {
+  const fileStream1 = fs.createReadStream(tnliPath)
+  const fileStream2 = fs.createReadStream(snliPath)
+  const tnli = []
+  const snli = []
+
+  const rl1 = readline.createInterface({
+    input: fileStream1,
+    crlfDelay: Infinity
+  });
+
+  for await (const line of rl1) {
+    tnli.push(line)
+  }
+
+  const rl2 = readline.createInterface({
+    input: fileStream2,
+    crlfDelay: Infinity
+  });
+  for await (const line of rl2) {
+    snli.push(line)
+  }
+  let j = tnli.length
+  while (j > 0) {
+    let i = Math.floor(Math.random() * snli.length)
+    console.log(`inject tnli ${j} into snli ${i}`)
+    snli[i] = tnli[j]
+    j--
+  }
+  const dataBuffer = Buffer.from(snli.join('\n'), 'utf-8')
+  fs.writeFileSync(`./data/snli_${type}_mixed.txt`, dataBuffer)
+}
+
 if (process.argv.length < 3) {
   console.log('param function and file are expected')
 }
@@ -585,4 +618,8 @@ if (process.argv[2] == 'generate') {
   } else {
     transformLineByLine(process.argv[3], 'train')
   }
+} else if (process.argv[2] == 'mix') {
+  let tnliPath = process.argv[3]
+  let snliPath = process.argv[4]
+  mixDatasetWithSnli(tnliPath, snliPath, process.argv[5] || 'train')
 }
