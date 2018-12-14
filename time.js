@@ -26,7 +26,7 @@ let timeRules = {
         'contradiction': ['chg_after', 'chg_at']
     },
     'after': {
-        'pattern': 'after_DURATION/TIME/DATE_5',
+        'pattern': 'after_TIME/DATE_5',
         'entailment': ['increase_time'],
         'neutral': ['decrease_time'],
         'contradiction': ['chg_before', 'chg_at']
@@ -57,9 +57,10 @@ let timeRules = {
     // },
     'between': {
         'pattern': 'between_DURATION/TIME/DATE_5',
-        'entailment': ['increase_time1, decrease_time2'],
-        'neutral': ['decrease_time1, increase_time2'],
-        'contradiction': ['chg_after_time2', 'chg_at_time1', 'chg_before_time1']
+        'entailment': ['decrease_time'],
+        'neutral': ['increase_time'],
+        'contradiction': null
+        // 'contradiction': ['chg_after_time2', 'chg_at_time1', 'chg_before_time1']
     },
     'later': {
         'pattern': 'later_DATE_-5',
@@ -73,6 +74,27 @@ let timeRules = {
         'neutral': null,
         'contradiction': ['chg_time']
     }
+}
+
+let transformStats = {
+  overall: {
+    entailment: 0,
+    neutral: 0,
+    contradiction: 0,
+    entailment_token_count: 0,
+    neutral_token_count: 0,
+    contradiction_token_count: 0
+  }
+}
+for (let k in timeRules) {
+  transformStats[k] = {
+    entailment: 0,
+    neutral: 0,
+    contradiction: 0,
+    entailment_token_count: 0,
+    neutral_token_count: 0,
+    contradiction_token_count: 0
+  }
 }
 
 let quants = {
@@ -120,6 +142,12 @@ let quants = {
     }
 }
 
+function printProgress(progress){
+    process.stdout.clearLine();
+    process.stdout.cursorTo(0);
+    process.stdout.write('Reading lines ' + progress );
+}
+
 function Counter(array) {
   var count = {};
   array.forEach(val => count[val] = (count[val] || 0) + 1);
@@ -134,6 +162,25 @@ function getTimePatterns(rules) {
   return timePatterns
 }
 
+function computeTokenCount(transformStats) {
+  transformStats['overall']['entailment_token_count'] =  transformStats['overall']['entailment_token_count'] / transformStats['overall']['entailment']
+  transformStats['overall']['neutral_token_count'] =  transformStats['overall']['neutral_token_count'] / transformStats['overall']['neutral']
+  transformStats['overall']['contradiction_token_count'] =  transformStats['overall']['contradiction_token_count'] / transformStats['overall']['contradiction']
+  for (let k in timeRules) {
+    transformStats[k]['entailment_token_count'] =  transformStats[k]['entailment_token_count'] / transformStats[k]['entailment']
+    transformStats[k]['neutral_token_count'] =  transformStats[k]['neutral_token_count'] / transformStats[k]['neutral']
+    transformStats[k]['contradiction_token_count'] =  transformStats[k]['contradiction_token_count'] / transformStats[k]['contradiction']
+  }
+  return transformStats
+}
+
+// if has_day? increase day
+// if has_month? increase month
+// if has_season? increase season
+// if has_year? increase year
+//    if has_start? to middle, to end
+//    if has_early? to late
+//    if this? to next
 function change_time(times, tokens, direction) {
   for (let i in times) {
     let tType = times[i].split(' ')[0]
@@ -181,44 +228,6 @@ function change_time(times, tokens, direction) {
   return false // nothing changed
 }
 
-// if has_day? increase day
-// if has_month? increase month
-// if has_season? increase season
-// if has_year? increase year
-//    if has_start? to middle, to end
-//    if has_early? to late
-//    if this? to next
-function increaseTime(times, tokens) {
-  let timeString = ""
-  for (let i in times) {
-    let type = times[i].split(' ')[0]
-    let index = parseInt(times[i].split(' ')[1])
-    if (i == 0) {
-      timeType = type
-      lastIndex = index
-      timeString += tokens[index]
-    } else {
-      if (type == timeType && index == lastIndex+1) {
-        lastIndex = index
-        timeString += ' ' + tokens[index]
-      }
-    }
-  }
-  if (timeString.length > 0) {
-    if (!moment(timeString).isValid()) {
-      // console.log(timeString, moment(timeString).toDate())
-      invalidDatetime.push(timeString)
-    } else {
-      validDatetime.push(timeString)
-    }
-  }
-  if (moment.isDate(timeString)) {
-    return tokens.join(' ').replace(timeString, moment(timeString).add(1, 'days').toDate())
-  } else {
-    return false
-  }
-}
-
 function getAllTimeExpressions(times, tokens) {
   let timeString = ""
   for (let i in times) {
@@ -256,6 +265,120 @@ let timePatterns = getTimePatterns(timeRules)
 function parseLine(line) {
   // index word lemma pos ner
   return line.split(' ')
+}
+
+function pickTrainSet(sentences) {
+  let counter = {
+    'before': {
+        'entailment': 100,
+        'neutral': 100,
+        'contradiction': 100
+    },
+    'after': {
+        'entailment': 100,
+        'neutral': 100,
+        'contradiction': 100
+    },
+    'at': {
+        'entailment': 100,
+        'neutral': 100,
+        'contradiction': 100
+    },
+    'in': {
+        'entailment': 100,
+        'neutral': 100,
+        'contradiction': 100
+    },
+    'since_date': { // is since an event?
+        'entailment': 100,
+        'neutral': 100,
+        'contradiction': 100
+    },
+    'between': {
+        'entailment': 100,
+        'neutral': 100,
+        'contradiction': 100
+        // 'contradiction': ['chg_after_time2', 'chg_at_time1', 'chg_before_time1']
+    },
+    'later': {
+        'entailment': 100,
+        'neutral': 100,
+        'contradiction': 100
+    },
+    'earlier': {
+        'entailment': 100,
+        'neutral': 100,
+        'contradiction': 100
+    }
+  }
+  let res = []
+  for (i in sentences) {
+    let sent = sentences[i]
+    let label = sent[0]
+    let keyword = sent[8]
+    if (counter[keyword][label] > 0) {
+      res.push(sent.join('\t'))
+      counter[keyword][label]--
+    }
+  }
+  return res
+}
+
+function pickDevSet(sentences) {
+  let counter = {
+    'before': {
+        'entailment': 20,
+        'neutral': 20,
+        'contradiction': 20
+    },
+    'after': {
+        'entailment': 20,
+        'neutral': 20,
+        'contradiction': 20
+    },
+    'at': {
+        'entailment': 20,
+        'neutral': 20,
+        'contradiction': 20
+    },
+    'in': {
+        'entailment': 20,
+        'neutral': 20,
+        'contradiction': 20
+    },
+    'since_date': { // is since an event?
+        'entailment': 20,
+        'neutral': 20,
+        'contradiction': 20
+    },
+    'between': {
+        'entailment': 20,
+        'neutral': 20,
+        'contradiction': 20
+        // 'contradiction': ['chg_after_time2', 'chg_at_time1', 'chg_before_time1']
+    },
+    'later': {
+        'entailment': 20,
+        'neutral': 20,
+        'contradiction': 20
+    },
+    'earlier': {
+        'entailment': 20,
+        'neutral': 20,
+        'contradiction': 20
+    }
+  }
+  let res = []
+  for (i in sentences) {
+    let sent = sentences[i]
+    let label = sent[0]
+    let keyword = sent[8]
+    if (counter[keyword][label] > 0) {
+      res.push(sent.join('\t'))
+      counter[keyword][label]--
+    }
+  }
+  return res
 }
 
 // return sentence | type keyword_index POS NER time1 POS NER time2 POS NER
@@ -342,7 +465,6 @@ function transformNLISentence(key, tokens, keyword, times) {
         _tokens[tokenIndex] = opcode[1]
         score++
         continue
-        // res.push([_tokens.join(' '), ops[index]].join('\t'))
       }
       if (opcode[0] == 'increase') {
         let _res = change_time(times, _tokens, 1)
@@ -351,10 +473,6 @@ function transformNLISentence(key, tokens, keyword, times) {
           score++
         }
         continue
-        // if (chg) {
-        //   // console.log('transform increase', _tokens.join(' '), chg.join(' '))
-        //   res.push([_tokens.join(' '), chg.join(' '), ops[index]].join('\t'))
-        // }
       }
       if (opcode[0] == 'decrease') {
         let _res = change_time(times, _tokens, -1)
@@ -363,23 +481,24 @@ function transformNLISentence(key, tokens, keyword, times) {
           score++
         }
         continue
-        // if (chg) {
-        //   // console.log('transform decrease', _tokens.join(' '), chg.join(' '))
-        //   res.push([_tokens.join(' '), chg.join(' '), ops[index]].join('\t'))
-        // }
       }
     }
     if (scorefull != score) continue
     let origin = tokens.join(' ')
     let chg = _tokens.join(' ')
     if (origin != chg) {
-      res.push([origin, chg, ops[index]].join('\t'))
+      transformStats[keyword[0]][ops[index]]++
+      transformStats['overall'][ops[index]]++
+      transformStats[keyword[0]][ops[index] + '_token_count'] += _tokens.length
+      transformStats['overall'][ops[index] + '_token_count'] += _tokens.length
+      // SNLI format
+      res.push([ops[index], '()', '()', '()', '()', origin, chg, '#promptID#', keyword[0], ops[index],ops[index],ops[index],ops[index],ops[index]])
     }
   }
   return res
 }
 
-async function transformLineByLine(filename) {
+async function transformLineByLine(filename, type='train') {
   const fileStream = fs.createReadStream(filename)
 
   const rl = readline.createInterface({
@@ -401,15 +520,24 @@ async function transformLineByLine(filename) {
   }
   const invalid = Counter(invalidDatetime)
   const valid = Counter(validDatetime)
+  
+  transformStats = computeTokenCount(transformStats)
+  const stats = Buffer.from(JSON.stringify(transformStats), 'utf-8')
+  fs.writeFileSync(`./data/nli-transform-stats_${type}.json`, stats)
 
   const db1 = Buffer.from(JSON.stringify(invalid), 'utf-8')
-  fs.writeFileSync(`nli-date-invalid.json`, db1)
+  fs.writeFileSync(`./data/nli-date-invalid_${type}.json`, db1)
 
   const db2 = Buffer.from(JSON.stringify(valid), 'utf-8')
-  fs.writeFileSync(`nli-date-valid.json`, db2)
+  fs.writeFileSync(`./data/nli-date-valid_${type}.json`, db2)
 
+  if (type == 'train') {
+    output = pickTrainSet(output)
+  } else if (type == 'dev') {
+    output = pickDevSet(output)
+  }
   const db3 = Buffer.from(output.join('\n'), 'utf-8')
-  fs.writeFileSync(`nli-train.txt`, db3)
+  fs.writeFileSync(`./data/tnli_${type}.txt`, db3)
 }
 
 async function processLineByLine(filename) {
@@ -426,7 +554,8 @@ async function processLineByLine(filename) {
   for await (const line of rl) {
     if (line.length == 0) {
       if (sc % 100 == 0) {
-        console.log(`Reading sentence: ${sc}`)
+        printProgress(sc)
+        // console.log(`Reading sentence: ${sc}`)
       }
       sc += 1
       let res = parseSentence(sentence, timePatterns)
@@ -438,10 +567,10 @@ async function processLineByLine(filename) {
       sentence.push(line.split('\t'))
     }
   }
-  console.log(`${output.length} sentences are found.`)
-  console.log(patternCounter)
+  console.log(`\n${output.length} sentences are found.`)
+  // console.log(patternCounter)
   const dataBuffer = Buffer.from(output.join('\n'), 'utf-8')
-  fs.writeFileSync(`output.txt`, dataBuffer)
+  fs.writeFileSync(`./data/${filename}_annotated.txt`, dataBuffer)
 }
 
 if (process.argv.length < 3) {
@@ -451,5 +580,9 @@ if (process.argv.length < 3) {
 if (process.argv[2] == 'generate') {
   processLineByLine(process.argv[3])
 } else if (process.argv[2] == 'transform') {
-  transformLineByLine(process.argv[3])
+  if (process.argv[3] == 'dev') {
+    transformLineByLine(process.argv[4], 'dev')
+  } else {
+    transformLineByLine(process.argv[3], 'train')
+  }
 }

@@ -158,6 +158,7 @@ function could_be_year(year, width = null) {
   return year >= 0 && year <= 9999 && (width == null || width == 2 || width == 4)
 }
 
+
 module.exports = {
   MONTHS: MONTHS,
   DAYS: DAYS,

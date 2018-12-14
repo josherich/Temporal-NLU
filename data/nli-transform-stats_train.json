@@ -1,0 +1,83 @@
+{
+    "overall":
+    {
+        "entailment": 7895,
+        "neutral": 409,
+        "contradiction": 11346,
+        "entailment_token_count": 29.031158961367954,
+        "neutral_token_count": 30.753056234718827,
+        "contradiction_token_count": 29.453728186144897
+    },
+    "before":
+    {
+        "entailment": 83,
+        "neutral": 83,
+        "contradiction": 250,
+        "entailment_token_count": 29.518072289156628,
+        "neutral_token_count": 29.518072289156628,
+        "contradiction_token_count": 32.072
+    },
+    "after":
+    {
+        "entailment": 88,
+        "neutral": 88,
+        "contradiction": 232,
+        "entailment_token_count": 31.102272727272727,
+        "neutral_token_count": 31.102272727272727,
+        "contradiction_token_count": 31.28448275862069
+    },
+    "at":
+    {
+        "entailment": 305,
+        "neutral": 0,
+        "contradiction": 709,
+        "entailment_token_count": 26.921311475409837,
+        "neutral_token_count": null,
+        "contradiction_token_count": 30.087447108603666
+    },
+    "in":
+    {
+        "entailment": 6390,
+        "neutral": 0,
+        "contradiction": 8421,
+        "entailment_token_count": 28.98341158059468,
+        "neutral_token_count": null,
+        "contradiction_token_count": 29.366346039662748
+    },
+    "since_date":
+    {
+        "entailment": 791,
+        "neutral": 0,
+        "contradiction": 999,
+        "entailment_token_count": 29.34007585335019,
+        "neutral_token_count": null,
+        "contradiction_token_count": 29.5985985985986
+    },
+    "between":
+    {
+        "entailment": 238,
+        "neutral": 238,
+        "contradiction": 0,
+        "entailment_token_count": 31.054621848739497,
+        "neutral_token_count": 31.054621848739497,
+        "contradiction_token_count": null
+    },
+    "later":
+    {
+        "entailment": 0,
+        "neutral": 0,
+        "contradiction": 528,
+        "entailment_token_count": null,
+        "neutral_token_count": null,
+        "contradiction_token_count": 27.553030303030305
+    },
+    "earlier":
+    {
+        "entailment": 0,
+        "neutral": 0,
+        "contradiction": 207,
+        "entailment_token_count": null,
+        "neutral_token_count": null,
+        "contradiction_token_count": 29.77294685990338
+    }
+}
