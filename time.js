@@ -66,13 +66,13 @@ let timeRules = {
         'pattern': 'later_DATE_-5',
         'entailment': null,
         'neutral': null,
-        'contradiction': ['chg_time']
+        'contradiction': ['chg_earlier', 'chg_before']
     },
     'earlier': {
         'pattern': 'earlier_DATE_-5',
         'entailment': null,
         'neutral': null,
-        'contradiction': ['chg_time']
+        'contradiction': ['chg_later', 'chg_after']
     }
 }
 
@@ -314,10 +314,10 @@ function pickTrainSet(sentences) {
   let res = []
   for (i in sentences) {
     let sent = sentences[i]
-    let label = sent[0]
-    let keyword = sent[8]
+    let label = sent['gold_label']
+    let keyword = sent['pairID']
     if (counter[keyword][label] > 0) {
-      res.push(sent.join('\t'))
+      res.push(JSON.stringify(sent))
       counter[keyword][label]--
     }
   }
@@ -371,10 +371,10 @@ function pickDevSet(sentences) {
   let res = []
   for (i in sentences) {
     let sent = sentences[i]
-    let label = sent[0]
-    let keyword = sent[8]
+    let label = sent['gold_label']
+    let keyword = sent['pairID']
     if (counter[keyword][label] > 0) {
-      res.push(sent.join('\t'))
+      res.push(JSON.stringify(sent))
       counter[keyword][label]--
     }
   }
@@ -434,7 +434,7 @@ function parseSentence(sent, patterns) {
   return false
 }
 
-function transformNLISentence(key, tokens, keyword, times) {
+function transformNLISentence(key, tokens, keyword, times, type) {
   // index sentence1 sentence2 label
   let res = []
   let ops = ['entailment', 'neutral', 'contradiction']
@@ -492,7 +492,36 @@ function transformNLISentence(key, tokens, keyword, times) {
       transformStats[keyword[0]][ops[index] + '_token_count'] += _tokens.length
       transformStats['overall'][ops[index] + '_token_count'] += _tokens.length
       // SNLI format
-      res.push([ops[index], '()', '()', '()', '()', origin, chg, '#promptID#', keyword[0], ops[index],ops[index],ops[index],ops[index],ops[index]])
+      if (type == 'genre') {
+        res.push({
+            "annotator_labels": [ops[index],ops[index],ops[index],ops[index],ops[index]],
+            "genre": "time",
+            "gold_label": ops[index],
+            "pairID": keyword[0],
+            "promptID": "#promptID#",
+            "sentence1": origin,
+            "sentence1_binary_parse": origin,
+            "sentence1_parse": "",
+            "sentence2": chg,
+            "sentence2_binary_parse": chg,
+            "sentence2_parse": ""
+        })
+        // res.push([ops[index], '()', '()', '()', '()', origin, chg, '#promptID#', keyword[0], 'time', ops[index],ops[index],ops[index],ops[index],ops[index]])
+      } else {
+        res.push({
+            "annotator_labels": [ops[index],ops[index],ops[index],ops[index],ops[index]],
+            "captionID": "id",
+            "gold_label": ops[index],
+            "pairID": keyword[0],
+            "sentence1": origin,
+            "sentence1_binary_parse": origin,
+            "sentence1_parse": "",
+            "sentence2": chg,
+            "sentence2_binary_parse": chg,
+            "sentence2_parse": ""
+        })
+        // res.push([ops[index], '()', '()', '()', '()', origin, chg, '#promptID#', keyword[0], ops[index], ops[index],ops[index],ops[index],ops[index]])
+      }
     }
   }
   return res
@@ -513,7 +542,7 @@ async function transformLineByLine(filename, type='train') {
       continue
     }
     let ops = line.split('\t')
-    let res = transformNLISentence(ops[0], ops[1].split(' '), ops[2].split(' '), ops.slice(3))
+    let res = transformNLISentence(ops[0], ops[1].split(' '), ops[2].split(' '), ops.slice(3), type)
     if (res.length > 0) {
       output = output.concat(res)
     }
@@ -535,9 +564,13 @@ async function transformLineByLine(filename, type='train') {
     output = pickTrainSet(output)
   } else if (type == 'dev') {
     output = pickDevSet(output)
+  } else if (type == 'test') {
+    output = pickDevSet(output)
+  } else if (type == 'genre') {
+    output = pickDevSet(output)
   }
   const db3 = Buffer.from(output.join('\n'), 'utf-8')
-  fs.writeFileSync(`./data/tnli_${type}.txt`, db3)
+  fs.writeFileSync(`./data/tnli_${type}.jsonl`, db3)
 }
 
 async function processLineByLine(filename) {
@@ -595,15 +628,24 @@ async function mixDatasetWithSnli(tnliPath, snliPath, type='train') {
   for await (const line of rl2) {
     snli.push(line)
   }
+  
+  fileStream1.destroy()
+  fileStream2.destroy()
+
   let j = tnli.length
   while (j > 0) {
     let i = Math.floor(Math.random() * snli.length)
-    console.log(`inject tnli ${j} into snli ${i}`)
-    snli[i] = tnli[j]
+    if (type == 'genre') {
+      console.log(`append tnli ${j} to mnli dev ${i} as genre time`)
+      snli.push(tnli[j])
+    } else {
+      console.log(`inject tnli ${j} into snli ${i}`)
+      snli[i] = tnli[j]
+    }
     j--
   }
   const dataBuffer = Buffer.from(snli.join('\n'), 'utf-8')
-  fs.writeFileSync(`./data/snli_${type}_mixed.txt`, dataBuffer)
+  fs.writeFileSync(`./data/snli_${type}_mixed.jsonl`, dataBuffer)
 }
 
 if (process.argv.length < 3) {
@@ -613,8 +655,8 @@ if (process.argv.length < 3) {
 if (process.argv[2] == 'generate') {
   processLineByLine(process.argv[3])
 } else if (process.argv[2] == 'transform') {
-  if (process.argv[3] == 'dev') {
-    transformLineByLine(process.argv[4], 'dev')
+  if (process.argv[3] == 'dev' || process.argv[3] == 'test' || process.argv[3] == 'genre') {
+    transformLineByLine(process.argv[4], process.argv[3])
   } else {
     transformLineByLine(process.argv[3], 'train')
   }
