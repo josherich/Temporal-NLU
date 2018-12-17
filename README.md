@@ -1,6 +1,6 @@
-# bAbI-NLU
+# Temporal-NLU
 
-Task generation for testing natural language understanding models
+Generating synthetic data for training natural language inference models on target problems
 
 ### generate NER annotated corpus
 
