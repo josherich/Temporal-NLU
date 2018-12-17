@@ -268,6 +268,8 @@ function parseLine(line) {
 }
 
 function pickTrainSet(sentences) {
+  let maxToken = 0
+  let minToken = 100000
   let counter = {
     'before': {
         'entailment': 600,
@@ -309,6 +311,11 @@ function pickTrainSet(sentences) {
         'entailment': 600,
         'neutral': 600,
         'contradiction': 600
+    },
+    'tokens': {
+      'entailment': 0,
+      'neutral': 0,
+      'contradiction': 0
     }
   }
   let res = []
@@ -317,14 +324,36 @@ function pickTrainSet(sentences) {
     let label = sent['gold_label']
     let keyword = sent['pairID']
     if (counter[keyword][label] > 0) {
+      let tlength = sent['sentence1'].split(' ').length
+      counter['tokens'][label] += tlength
+      if (tlength > maxToken) {
+        maxToken = tlength
+      }
+      if (tlength < minToken) {
+        minToken = tlength
+      }
       res.push(JSON.stringify(sent))
       counter[keyword][label]--
     }
   }
+  for (let k in counter) {
+    console.log('keyword: ', k)
+    console.log('entailment: ', 600 - counter[k]['entailment'])
+    console.log('neutral: ', 600 - counter[k]['neutral'])
+    console.log('contradiction: ', 600 - counter[k]['contradiction'])
+    console.log('\n')
+  }
+  console.log('entailment#: ', counter['tokens']['entailment'])
+  console.log('neutral#: ', counter['tokens']['neutral'])
+  console.log('contradiction#: ', counter['tokens']['contradiction'])
+  console.log('max: ', maxToken)
+  console.log('min: ', minToken)
   return res
 }
 
 function pickDevSet(sentences) {
+  let maxToken = 0
+  let minToken = 100000
   let counter = {
     'before': {
         'entailment': 20,
@@ -366,6 +395,11 @@ function pickDevSet(sentences) {
         'entailment': 20,
         'neutral': 20,
         'contradiction': 20
+    },
+    'tokens': {
+      'entailment': 0,
+      'neutral': 0,
+      'contradiction': 0
     }
   }
   let res = []
@@ -374,10 +408,30 @@ function pickDevSet(sentences) {
     let label = sent['gold_label']
     let keyword = sent['pairID']
     if (counter[keyword][label] > 0) {
+      let tlength = sent['sentence1'].split(' ').length
+      counter['tokens'][label] += tlength
+      if (tlength > maxToken) {
+        maxToken = tlength
+      }
+      if (tlength < minToken) {
+        minToken = tlength
+      }
       res.push(JSON.stringify(sent))
       counter[keyword][label]--
     }
   }
+  for (let k in counter) {
+    console.log('keyword: ', k)
+    console.log('entailment: ', 20 - counter[k]['entailment'])
+    console.log('neutral: ', 20 - counter[k]['neutral'])
+    console.log('contradiction: ', 20 - counter[k]['contradiction'])
+    console.log('\n')
+  }
+  console.log('entailment#: ', counter['tokens']['entailment'])
+  console.log('neutral#: ', counter['tokens']['neutral'])
+  console.log('contradiction#: ', counter['tokens']['contradiction'])
+  console.log('max: ', maxToken)
+  console.log('min: ', minToken)
   return res
 }
 

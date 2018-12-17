@@ -54,6 +54,9 @@ with open(submission_filename, 'r') as f:
                 guesses_by_annotation[annotation] += 1.0
                 if guess == labels[pairID]:
                     correct_guesses_by_annotation[annotation] += 1.0
+                else:
+                    if annotation == '#QUANTITY/TIME_REASONING':
+                        print "{}\ngold: {}\tguess: {}".format(pairID, labels[pairID], guess)
 
 print "Tag\tAccuracy\tInstances of tag"
 for annotation in guesses_by_annotation:
