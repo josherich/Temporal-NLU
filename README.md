@@ -2,6 +2,8 @@
 
 Generating synthetic data for training natural language inference models on target problems
 
+[[paper]](https://github.com/josherich/Temporal-NLU/blob/master/improving-temporal-reasoning-nlu.pdf)
+
 ### generate NER annotated corpus
 
 node time.js generate training-data.1m.01.conll
