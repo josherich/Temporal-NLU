@@ -41,3 +41,6 @@ allennlp evaluate \
 ### evaluate on InferSent
 
 s3://mindynode/tnli_test.jsonl
+
+### evaludate multinli dev
+python2 train_genre.py cbow petModel-cbow-2per --genre slate --emb_train --test
